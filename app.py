@@ -9,8 +9,8 @@ import streamlit as st
 
 import itbi_core as core
 
-APP_VERSION = "WEB-0.2.1"
-REQUIRED_CORE_API = 201
+APP_VERSION = "WEB-0.2.2"
+REQUIRED_CORE_API = 202
 
 st.set_page_config(
     page_title="Imóveis SP | ITBI Analytics",
@@ -42,6 +42,13 @@ st.markdown(
 .small-muted { color:#718397; font-size:.83rem; }
 .update-box { background:white; border:1px solid #dce7f2; border-radius:18px; padding:18px; margin:10px 0 18px; box-shadow:0 5px 20px rgba(20,45,70,.05); }
 div[data-testid="stMetric"] { background:white; border:1px solid #e6edf5; padding:15px 16px; border-radius:16px; box-shadow:0 4px 14px rgba(20,45,70,.04); }
+div[data-testid="stMetric"] [data-testid="stMetricLabel"],
+div[data-testid="stMetric"] [data-testid="stMetricLabel"] p { color:#60748a !important; }
+div[data-testid="stMetric"] [data-testid="stMetricValue"],
+div[data-testid="stMetric"] [data-testid="stMetricValue"] div { color:#153653 !important; }
+div[data-testid="stMetric"] [data-testid="stMetricDelta"] { color:#153653 !important; }
+.stTabs [data-baseweb="tab-list"] button { color:#60748a !important; }
+.stTabs [aria-selected="true"] { color:#d64545 !important; }
 .stButton > button { border-radius:12px; font-weight:700; min-height:42px; }
 .stDownloadButton > button { border-radius:12px; font-weight:700; }
 div[data-baseweb="select"] > div { border-radius:12px; }
@@ -170,7 +177,7 @@ if not core_compatible:
         f"⚠️ **Arquivos do site estão desencontrados.** O `app.py` está em **{APP_VERSION}**, "
         f"mas o `itbi_core.py` carregado é **{core_version}**. "
         "Substitua também o arquivo `itbi_core.py` no GitHub pelo arquivo da mesma versão. "
-        "Depois que os dois arquivos estiverem em WEB-0.2.1, o site volta a funcionar normalmente."
+        "Depois que os dois arquivos estiverem em WEB-0.2.2, o site volta a funcionar normalmente."
     )
     st.stop()
 
@@ -270,7 +277,7 @@ if st.session_state["show_update_panel"]:
             if not core_compatible:
                 st.error(
                     "Não é possível atualizar anos seletivamente enquanto o `itbi_core.py` estiver em versão antiga. "
-                    "Atualize o `itbi_core.py` para WEB-0.2.1 no GitHub e recarregue esta página."
+                    "Atualize o `itbi_core.py` para WEB-0.2.2 no GitHub e recarregue esta página."
                 )
                 st.stop()
             progress_bar = st.progress(0.0)
@@ -361,19 +368,16 @@ if years_count:
 
     search_disabled = not (chosen_street and chosen_number)
     if st.button("🔎 Analisar endereço", type="primary", disabled=search_disabled, use_container_width=True):
-        with st.spinner("Buscando o histórico do endereço nos anos carregados..."):
-            try:
-                hits = core.find_hits(chosen_street.value, chosen_number.value, mode="exact")
-                if not hits:
-                    st.session_state.pop("result_rows", None)
-                    st.warning("Nenhuma transação encontrada para esse endereço nos anos carregados.")
-                else:
-                    result_rows = core.load_source_rows(hits, lambda _message, _fraction: None)
-                    st.session_state["result_rows"] = result_rows
-                    st.session_state["result_street"] = chosen_street.value
-                    st.session_state["result_number"] = chosen_number.value
-            except Exception as exc:
-                st.error(f"Erro ao consultar o endereço: {exc}")
+        # Remove imediatamente o endereço anterior. A busca é executada no rerun seguinte,
+        # para que o usuário veja claramente que uma nova consulta começou.
+        st.session_state.pop("result_rows", None)
+        st.session_state.pop("result_street", None)
+        st.session_state.pop("result_number", None)
+        st.session_state["pending_search"] = {
+            "street": chosen_street.value,
+            "number": chosen_number.value,
+        }
+        st.rerun()
 else:
     st.selectbox(
         "Logradouro",
@@ -387,6 +391,40 @@ else:
         disabled=True,
         key="number_disabled_empty_v02",
     )
+
+pending_search = st.session_state.get("pending_search")
+if pending_search:
+    pending_street = str(pending_search.get("street", ""))
+    pending_number = str(pending_search.get("number", ""))
+    st.markdown(f"#### 🔎 Consultando {pending_street}, {pending_number}")
+    search_progress = st.progress(0.02, text="Localizando transações do endereço...")
+    search_status = st.empty()
+
+    try:
+        hits = core.find_hits(pending_street, pending_number, mode="exact")
+        if not hits:
+            st.session_state.pop("pending_search", None)
+            search_progress.empty()
+            search_status.warning("Nenhuma transação encontrada para esse endereço nos anos carregados.")
+        else:
+            search_progress.progress(0.10, text=f"{len(hits)} registro(s) localizado(s). Lendo as transações...")
+
+            def _search_progress(message, fraction):
+                fraction = 0.0 if fraction is None else max(0.0, min(1.0, float(fraction)))
+                overall = 0.10 + (0.88 * fraction)
+                search_progress.progress(overall, text=message or "Lendo transações...")
+
+            result_rows = core.load_source_rows(hits, _search_progress)
+            st.session_state["result_rows"] = result_rows
+            st.session_state["result_street"] = pending_street
+            st.session_state["result_number"] = pending_number
+            st.session_state.pop("pending_search", None)
+            search_progress.progress(1.0, text="Consulta concluída.")
+            search_status.success(f"Endereço atualizado: {pending_street}, {pending_number}")
+    except Exception as exc:
+        st.session_state.pop("pending_search", None)
+        search_progress.empty()
+        search_status.error(f"Erro ao consultar o endereço: {exc}")
 
 rows = st.session_state.get("result_rows")
 if rows:
@@ -451,4 +489,4 @@ if rows:
     )
 
 st.divider()
-st.caption("Fonte dos dados: Prefeitura de São Paulo • ITBI Analytics WEB-0.2")
+st.caption("Fonte dos dados: Prefeitura de São Paulo • ITBI Analytics WEB-0.2.2")
