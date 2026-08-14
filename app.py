@@ -9,6 +9,9 @@ import streamlit as st
 
 import itbi_core as core
 
+APP_VERSION = "WEB-0.2.1"
+REQUIRED_CORE_API = 201
+
 st.set_page_config(
     page_title="Imóveis SP | ITBI Analytics",
     page_icon="🏙️",
@@ -118,9 +121,32 @@ if "show_update_panel" not in st.session_state:
 if "years_to_update" not in st.session_state:
     st.session_state["years_to_update"] = default_years
 
+def safe_indexed_years() -> list[int]:
+    """Read indexed years without crashing if an older core is temporarily deployed."""
+    if not years_count:
+        return []
+    fn = getattr(core, "indexed_years", None)
+    if callable(fn):
+        try:
+            return fn()
+        except Exception:
+            return []
+    # Backward-compatible fallback for WEB-0.1 cores.
+    try:
+        core.initialize_database()
+        with core.database_connection() as conn:
+            rows = conn.execute("SELECT ano FROM indexed_files ORDER BY ano").fetchall()
+        return [int(row[0]) for row in rows]
+    except Exception:
+        return []
+
+
 years_count, row_count, last_update, latest_year, latest_month = status_snapshot()
 period = fmt_period(latest_year, latest_month)
-loaded_years = core.indexed_years() if years_count else []
+loaded_years = safe_indexed_years()
+core_api = int(getattr(core, "CORE_API_VERSION", 0) or 0)
+core_version = str(getattr(core, "CORE_VERSION", "versão antiga"))
+core_compatible = core_api >= REQUIRED_CORE_API
 
 st.markdown(
     f"""
@@ -128,7 +154,7 @@ st.markdown(
   <div class="hero-copy">
     <h1>Imóveis SP — ITBI Analytics</h1>
     <p>Histórico de transações imobiliárias com recolhimento de ITBI — Município de São Paulo</p>
-    <div><span class="pill">Base: {period}</span><span class="pill">{years_count} ano(s) indexado(s)</span></div>
+    <div><span class="pill">Base: {period}</span><span class="pill">{years_count} ano(s) indexado(s)</span><span class="pill">{APP_VERSION}</span></div>
   </div>
   <div class="hero-brand">
     <img src="{LINCE_LOGO_WHITE}" alt="Lince Partners">
@@ -138,6 +164,15 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+if not core_compatible:
+    st.error(
+        f"⚠️ **Arquivos do site estão desencontrados.** O `app.py` está em **{APP_VERSION}**, "
+        f"mas o `itbi_core.py` carregado é **{core_version}**. "
+        "Substitua também o arquivo `itbi_core.py` no GitHub pelo arquivo da mesma versão. "
+        "Depois que os dois arquivos estiverem em WEB-0.2.1, o site volta a funcionar normalmente."
+    )
+    st.stop()
 
 status_col, update_col = st.columns([2.4, 1], gap="medium", vertical_alignment="center")
 with status_col:
@@ -232,6 +267,12 @@ if st.session_state["show_update_panel"]:
                 st.rerun()
 
         if do_update:
+            if not core_compatible:
+                st.error(
+                    "Não é possível atualizar anos seletivamente enquanto o `itbi_core.py` estiver em versão antiga. "
+                    "Atualize o `itbi_core.py` para WEB-0.2.1 no GitHub e recarregue esta página."
+                )
+                st.stop()
             progress_bar = st.progress(0.0)
             status_box = st.empty()
 
