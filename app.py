@@ -9,7 +9,7 @@ import streamlit as st
 
 import itbi_core as core
 
-APP_VERSION = "WEB-0.2.2"
+APP_VERSION = "WEB-0.2.3"
 REQUIRED_CORE_API = 202
 
 st.set_page_config(
@@ -53,6 +53,40 @@ div[data-testid="stMetric"] [data-testid="stMetricDelta"] { color:#153653 !impor
 .stDownloadButton > button { border-radius:12px; font-weight:700; }
 div[data-baseweb="select"] > div { border-radius:12px; }
 [data-testid="stAlert"] { border-radius:14px; }
+
+/* THEME-PROOF: mantém contraste legível mesmo se navegador/Streamlit estiver em tema escuro. */
+[data-testid="stAppViewContainer"] { background:#f6f8fb !important; }
+[data-testid="stAppViewContainer"] h2,
+[data-testid="stAppViewContainer"] h3,
+[data-testid="stAppViewContainer"] h4,
+[data-testid="stAppViewContainer"] h5,
+[data-testid="stAppViewContainer"] h6 { color:#153653 !important; }
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] > p { color:#4f6478 !important; }
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p,
+[data-testid="stCaptionContainer"] span { color:#60748a !important; opacity:1 !important; }
+[data-testid="stWidgetLabel"],
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] span { color:#153653 !important; opacity:1 !important; }
+[data-testid="stProgress"] p,
+[data-testid="stProgress"] span,
+[data-testid="stProgress"] div { color:#153653 !important; }
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span,
+[data-testid="stAlert"] div { color:#153653 !important; }
+.stTabs [data-baseweb="tab-list"] { border-bottom-color:#dce6ef !important; }
+.stTabs button[role="tab"],
+.stTabs button[role="tab"] p,
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] span { color:#60748a !important; opacity:1 !important; font-weight:700 !important; }
+.stTabs button[role="tab"][aria-selected="true"],
+.stTabs button[role="tab"][aria-selected="true"] p,
+.stTabs button[role="tab"][aria-selected="true"] span { color:#d64545 !important; }
+/* O hero é propositalmente escuro. */
+.hero h1 { color:white !important; }
+.hero p, .hero .madeby { color:#d9e6f3 !important; }
+.hero .pill { color:#164b8d !important; }
+
 @media (max-width: 700px) {
   .block-container { padding-left:.75rem; padding-right:.75rem; padding-top:.65rem; }
   .hero { padding:17px; border-radius:18px; align-items:flex-start; gap:10px; }
@@ -177,7 +211,7 @@ if not core_compatible:
         f"⚠️ **Arquivos do site estão desencontrados.** O `app.py` está em **{APP_VERSION}**, "
         f"mas o `itbi_core.py` carregado é **{core_version}**. "
         "Substitua também o arquivo `itbi_core.py` no GitHub pelo arquivo da mesma versão. "
-        "Depois que os dois arquivos estiverem em WEB-0.2.2, o site volta a funcionar normalmente."
+        "Depois que os dois arquivos estiverem em WEB-0.2.3, o site volta a funcionar normalmente."
     )
     st.stop()
 
@@ -489,4 +523,4 @@ if rows:
     )
 
 st.divider()
-st.caption("Fonte dos dados: Prefeitura de São Paulo • ITBI Analytics WEB-0.2.2")
+st.caption("Fonte dos dados: Prefeitura de São Paulo • ITBI Analytics WEB-0.2.3")

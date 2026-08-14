@@ -28,7 +28,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
 CORE_API_VERSION = 202
-CORE_VERSION = "WEB-0.2.2"
+CORE_VERSION = "WEB-0.2.3"
 
 APP_TITLE = "FERRAMENTA DE BUSCA DE TRANSAÇÕES IMOBILIÁRIAS – ITBI SP"
 SOURCE_PAGE = "https://prefeitura.sp.gov.br/web/fazenda/w/acesso_a_informacao/31501"
@@ -995,7 +995,7 @@ def set_column_widths(ws, widths: dict[int, float]) -> None:
 
 
 
-APP_VERSION = "WEB-0.2.2"
+APP_VERSION = "WEB-0.2.3"
 OUTPUT_OFFSET = 4
 TRANSACTION_VALUE_INDEX = OUTPUT_OFFSET + 8
 TRANSACTION_DATE_INDEX = OUTPUT_OFFSET + 9
