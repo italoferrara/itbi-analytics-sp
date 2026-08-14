@@ -514,6 +514,7 @@ def index_year(
 def update_database(
     force_all: bool,
     progress: Callable[[str, Optional[float]], None],
+    selected_years: Optional[Iterable[int]] = None,
 ) -> dict:
     initialize_database()
     manifest = load_json(MANIFEST_PATH, {})
@@ -526,16 +527,37 @@ def update_database(
     }
     session = requests.Session()
     session.headers.update(headers)
-    links = extract_excel_links(session)
-    current_year = max(links)
-    summary = {"downloaded": [], "indexed": [], "skipped": [], "errors": []}
+    all_links = extract_excel_links(session)
+    source_current_year = max(all_links)
+
+    if selected_years is None:
+        links = all_links
+    else:
+        requested = sorted({int(year) for year in selected_years})
+        links = {year: all_links[year] for year in requested if year in all_links}
+        missing = [year for year in requested if year not in all_links]
+        if missing:
+            raise RuntimeError(
+                "Os seguintes anos não estão disponíveis na página da Prefeitura: "
+                + ", ".join(str(year) for year in missing)
+            )
+        if not links:
+            raise RuntimeError("Selecione pelo menos um ano para atualizar.")
+
+    summary = {
+        "requested": list(links),
+        "downloaded": [],
+        "indexed": [],
+        "skipped": [],
+        "errors": [],
+    }
 
     for position, (year, url) in enumerate(links.items(), start=1):
         progress(f"Preparando {year} ({position}/{len(links)})...", 0.0)
         destination = DATA_DIR / f"itbi_sp_{year}.xlsx"
         year_meta = manifest["years"].get(str(year), {})
 
-        must_download = force_all or not destination.exists() or year == current_year
+        must_download = force_all or not destination.exists() or year == source_current_year
         downloaded_hash: Optional[str] = None
         downloaded_size: Optional[int] = None
 
@@ -683,6 +705,45 @@ def database_status() -> tuple[int, int, Optional[str], Optional[int], Optional[
     latest_year = int(latest[0]) if latest else None
     latest_month = int(latest[1]) if latest else None
     return int(years), int(rows), manifest.get("last_update"), latest_year, latest_month
+
+
+def indexed_years() -> list[int]:
+    initialize_database()
+    with database_connection() as conn:
+        rows = conn.execute("SELECT ano FROM indexed_files ORDER BY ano").fetchall()
+    return [int(row[0]) for row in rows]
+
+
+def list_streets(limit: Optional[int] = None) -> list[SuggestionItem]:
+    """Return the street catalog for a native searchable Streamlit selectbox."""
+    initialize_database()
+    query = """
+        SELECT logradouro, logradouro_norm, bairros, record_count
+        FROM street_catalog
+        ORDER BY logradouro
+    """
+    params: tuple[object, ...] = ()
+    if limit is not None:
+        query += " LIMIT ?"
+        params = (int(limit),)
+    with database_connection() as conn:
+        rows = conn.execute(query, params).fetchall()
+
+    suggestions: list[SuggestionItem] = []
+    for street, street_norm, neighborhoods, _count in rows:
+        cleaned = _clean_neighborhoods(neighborhoods)
+        display = str(street)
+        if cleaned:
+            display += f"  •  {cleaned}"
+        suggestions.append(
+            SuggestionItem(
+                display=display,
+                value=str(street),
+                key=str(street_norm),
+                neighborhoods=cleaned,
+            )
+        )
+    return suggestions
 
 
 def _clean_neighborhoods(value: object, limit: int = 4) -> str:
@@ -931,7 +992,7 @@ def set_column_widths(ws, widths: dict[int, float]) -> None:
 
 
 
-APP_VERSION = "WEB-0.1"
+APP_VERSION = "WEB-0.2"
 OUTPUT_OFFSET = 4
 TRANSACTION_VALUE_INDEX = OUTPUT_OFFSET + 8
 TRANSACTION_DATE_INDEX = OUTPUT_OFFSET + 9
